@@ -9,7 +9,7 @@ import SettingsPage from '@/pages/SettingsPage';
 
 export default function App() {
   return (
-    <Router>
+    <Router basename={import.meta.env.BASE_URL}>
       <div className="font-sans">
         <Routes>
           <Route path="/" element={<HomePage />} />
