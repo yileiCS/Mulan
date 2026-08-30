@@ -1,4 +1,4 @@
-import { buildPrompt, parseAIResponse } from './prompt';
+import { buildSystemPrompt, parseAIResponse } from './prompt';
 import type { InspirationOption } from '../types';
 
 const CACHE_KEY = 'ai_cache';
@@ -139,7 +139,20 @@ export async function callAI(
 
   const cleanKey = normalizeApiKey(apiKey);
   const modelId = modelEndpoint || DEFAULT_MODEL_ID;
-  const prompt = buildPrompt(inspirationText, recentHistory);
+  const systemPrompt = buildSystemPrompt();
+
+  const messages: { role: string; content: string }[] = [
+    { role: 'system', content: systemPrompt },
+  ];
+
+  for (const msg of recentHistory.slice(-6)) {
+    messages.push({
+      role: msg.role === 'user' ? 'user' : 'assistant',
+      content: msg.content,
+    });
+  }
+
+  messages.push({ role: 'user', content: inspirationText });
 
   try {
     const response = await fetchWithTimeout(API_ENDPOINT, {
@@ -150,14 +163,9 @@ export async function callAI(
       },
       body: JSON.stringify({
         model: modelId,
-        messages: [
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-        max_tokens: 150,
-        temperature: 0.7,
+        messages,
+        max_tokens: 200,
+        temperature: 0.8,
       }),
     }, REQUEST_TIMEOUT);
 
@@ -190,7 +198,7 @@ export async function callAI(
     }
 
     saveToCache(inspirationText, content);
-    removePendingRequest(prompt);
+    removePendingRequest(inspirationText);
 
     const parsed = parseAIResponse(content);
     return {
@@ -206,7 +214,7 @@ export async function callAI(
       throw new Error('请求超时，请检查网络后重试');
     }
     if (error instanceof TypeError || error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
-      savePendingRequest(prompt);
+      savePendingRequest(inspirationText);
       throw new Error('网络连接失败，请检查网络是否正常');
     }
     throw error;
